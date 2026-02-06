@@ -2,11 +2,12 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Insurance Illustration → CSV</title>
+  <title>LPP Insurance CSV Tool</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
+
 <body>
-  <h2>Insurance Illustration → Template CSV</h2>
+  <h2>LPP Insurance Illustration → CSV</h2>
 
   <input type="file" id="fileInput" />
   <button onclick="processFile()">Generate CSV</button>
@@ -31,15 +32,15 @@
         "Total annual premium",
         "Premiums paid by client (Current rate)"
       ],
+      "Cash surrender value": [
+        "Cash surrender value (Current rate)",
+        "Total cash value (Primary)"
+      ],
       "Death benefit": [
         "Total Policy Death Benefit",
         "Total death benefit (Primary)",
         "Total death benefit (Current rate)",
         "Total payout on death ($)"
-      ],
-      "Cash surrender value": [
-        "Cash surrender value (Current rate)",
-        "Total cash value (Primary)"
       ],
       "Adjusted cost basis": [
         "ACB",
@@ -70,6 +71,11 @@
 
     function processFile() {
       const file = document.getElementById("fileInput").files[0];
+      if (!file) {
+        alert("Please select a file");
+        return;
+      }
+
       const reader = new FileReader();
 
       reader.onload = function (e) {
@@ -78,36 +84,49 @@
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
         const headers = data[0];
-        const values = data[1];
+        const rows = data.slice(1); // 所有数据行
 
-        let outputRow = {};
+        let outputRows = [];
 
-        TEMPLATE_HEADERS.forEach(target => {
-          let found = "";
-          (FIELD_MAPPING[target] || []).forEach(source => {
-            const idx = headers.indexOf(source);
-            if (idx !== -1 && found === "") {
-              found = values[idx];
-            }
+        rows.forEach(row => {
+          let outputRow = {};
+
+          TEMPLATE_HEADERS.forEach(target => {
+            let value = "";
+
+            (FIELD_MAPPING[target] || []).forEach(source => {
+              const idx = headers.indexOf(source);
+              if (idx !== -1 && value === "") {
+                value = row[idx];
+              }
+            });
+
+            outputRow[target] = value || "";
           });
-          outputRow[target] = found || "";
+
+          outputRows.push(outputRow);
         });
 
-        downloadCSV(outputRow);
+        downloadCSV(outputRows, file.name);
       };
 
       reader.readAsBinaryString(file);
     }
 
-    function downloadCSV(row) {
-      const csv =
-        TEMPLATE_HEADERS.join(",") + "\n" +
-        TEMPLATE_HEADERS.map(h => row[h]).join(",");
+    function downloadCSV(rows, originalFileName) {
+      let csv = TEMPLATE_HEADERS.join(",") + "\n";
+
+      rows.forEach(row => {
+        csv += TEMPLATE_HEADERS.map(h => row[h]).join(",") + "\n";
+      });
 
       const blob = new Blob([csv], { type: "text/csv" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = "illustration_filled.csv";
+
+      const baseName = originalFileName.replace(/\.[^/.]+$/, "");
+      link.download = `LPP-Updated-${baseName}.csv`;
+
       link.click();
     }
   </script>
