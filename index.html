@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <title>Insurance Illustration → LPP standardized CSV</title>
 
-<!-- Google Font for elegant title -->
+<!-- Elegant title font -->
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 
-<!-- XLSX library (CORRECT CDN) -->
+<!-- XLSX (correct CDN, required) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
@@ -23,6 +23,7 @@ body {
   margin:auto;
   padding:32px;
   background:#fff;
+  border-radius:18px;
 }
 
 /* ===== Title ===== */
@@ -53,10 +54,10 @@ body {
 }
 
 .btn {
-  padding:12px 20px;
+  padding:12px 22px;
   font-size:14px;
   font-weight:600;
-  border-radius:8px;
+  border-radius:10px;
   cursor:pointer;
 }
 
@@ -81,7 +82,7 @@ body {
 .file-tabs {
   display:flex;
   gap:8px;
-  margin-bottom:20px;
+  margin-bottom:24px;
   flex-wrap:wrap;
 }
 
@@ -98,18 +99,26 @@ body {
   color:#fff;
 }
 
+/* ===== Preview Section Wrapper ===== */
+
+.preview-section {
+  background:#ffffff;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:28px;
+}
+
 /* ===== Cards ===== */
 
 .card {
-  border-radius:12px;
+  border-radius:14px;
   padding:16px;
-  margin-bottom:24px;
   box-shadow:0 2px 6px rgba(0,0,0,0.05);
 }
 
 .card-illustration { background:#f1fbf4; }
 .card-lpp { background:#f1f7ff; }
-.card-rules { background:#f6f7f8; }
+.card-rules { background:#f6f7f8; margin-bottom:24px; }
 .card-explain { background:#ffffff; }
 
 .card h3 {
@@ -130,17 +139,22 @@ th, td {
   border:1px solid #ccc;
   padding:4px;
   white-space:nowrap;
+  text-align:right;
+}
+
+th {
+  text-align:center;
 }
 
 .highlight {
-  background:#fff3cd;
+  background:#fff7cc;
 }
 
 .table-scroll {
   max-height:320px;
   overflow:auto;
   border:1px solid #ccc;
-  border-radius:6px;
+  border-radius:8px;
 }
 
 /* Sticky header */
@@ -156,7 +170,7 @@ th, td {
 .freeze-first-col td:first-child {
   position:sticky;
   left:0;
-  background:#f9fafc;
+  background:#fafafa;
   z-index:2;
 }
 
@@ -207,13 +221,7 @@ th, td {
 <div class="action-bar">
   <label class="btn btn-upload">
     Upload illustration files
-    <input
-      type="file"
-      id="fileInput"
-      class="file-input"
-      multiple
-      onchange="processFiles()"
-    >
+    <input type="file" id="fileInput" class="file-input" multiple onchange="processFiles()">
   </label>
 
   <button class="btn btn-primary" onclick="downloadCurrent()">Download current CSV</button>
@@ -224,15 +232,17 @@ th, td {
 
 <!-- ===== PREVIEW ===== -->
 
-<div style="display:flex; gap:24px;">
-  <div style="width:50%;" class="card card-illustration">
-    <h3>Illustration review</h3>
-    <div id="originalPreview"></div>
-  </div>
+<div class="preview-section">
+  <div style="display:flex; gap:24px;">
+    <div style="width:50%;" class="card card-illustration">
+      <h3>Illustration review</h3>
+      <div id="originalPreview"></div>
+    </div>
 
-  <div style="width:50%;" class="card card-lpp">
-    <h3>LPP standardized preview</h3>
-    <div id="csvPreview"></div>
+    <div style="width:50%;" class="card card-lpp">
+      <h3>LPP standardized preview</h3>
+      <div id="csvPreview"></div>
+    </div>
   </div>
 </div>
 
@@ -315,6 +325,12 @@ function matchRule(header, rule) {
   return null;
 }
 
+function formatNumber(v) {
+  const n = Number(v);
+  if (isNaN(n)) return "0.00";
+  return n.toFixed(2);
+}
+
 /* ================= CORE ================= */
 
 function processFiles() {
@@ -326,13 +342,9 @@ function processFiles() {
   currentFile = "";
 
   const rules = {};
-  [...document.querySelectorAll("#ruleTable tr")]
-    .slice(1)
-    .forEach(r => {
-      rules[r.cells[0].innerText] =
-        r.cells[1].querySelector("input").value;
-    });
-
+  [...document.querySelectorAll("#ruleTable tr")].slice(1).forEach(r => {
+    rules[r.cells[0].innerText] = r.cells[1].querySelector("input").value;
+  });
   localStorage.setItem("lpp_rules", JSON.stringify(rules));
 
   Array.from(files).forEach(file => processSingleFile(file, rules));
@@ -379,15 +391,11 @@ function processSingleFile(file, rules) {
       return out;
     });
 
-    fileResults[file.name] = {
-      headers, rows, matchedIdx,
-      processedRows, explanationMap
-    };
-
+    fileResults[file.name] = { headers, rows, matchedIdx, processedRows, explanationMap };
     fileOrder.push(file.name);
     if (!currentFile) currentFile = file.name;
 
-    renderFileTabs();
+    renderTabs();
     renderCurrent();
   };
   reader.readAsBinaryString(file);
@@ -395,33 +403,30 @@ function processSingleFile(file, rules) {
 
 /* ================= UI ================= */
 
-function renderFileTabs() {
-  const div = document.getElementById("fileTabs");
-  div.innerHTML = fileOrder.map(name =>
-    `<div class="file-tab ${name===currentFile?"active":""}"
-          onclick="selectFile('${name}')">${name}</div>`
-  ).join("");
+function renderTabs() {
+  document.getElementById("fileTabs").innerHTML =
+    fileOrder.map(f =>
+      `<div class="file-tab ${f===currentFile?"active":""}" onclick="selectFile('${f}')">${f}</div>`
+    ).join("");
 }
 
-function selectFile(name) {
-  currentFile = name;
-  renderFileTabs();
+function selectFile(f) {
+  currentFile = f;
+  renderTabs();
   renderCurrent();
 }
 
 function renderCurrent() {
-  if (!currentFile) return;
   const res = fileResults[currentFile];
+  if (!res) return;
 
   let left = "<table class='freeze-first-col'><thead><tr>";
   res.headers.forEach(h => left += `<th>${h}</th>`);
   left += "</tr></thead><tbody>";
-
   res.rows.forEach(r => {
     left += "<tr>";
     res.headers.forEach((_,i) => {
-      const cls = res.matchedIdx.includes(i) ? "highlight" : "";
-      left += `<td class="${cls}">${r[i] ?? ""}</td>`;
+      left += `<td class="${res.matchedIdx.includes(i)?"highlight":""}">${r[i] ?? ""}</td>`;
     });
     left += "</tr>";
   });
@@ -430,22 +435,17 @@ function renderCurrent() {
   let right = "<table><thead><tr>";
   TEMPLATE_HEADERS.forEach(h => right += `<th>${h}</th>`);
   right += "</tr></thead><tbody>";
-
   res.processedRows.forEach(r => {
     right += "<tr>";
-    TEMPLATE_HEADERS.forEach(h => right += `<td>${r[h]}</td>`);
+    TEMPLATE_HEADERS.forEach(h => right += `<td>${formatNumber(r[h])}</td>`);
     right += "</tr>";
   });
   right += "</tbody></table>";
 
-  document.getElementById("originalPreview").innerHTML =
-    `<div class="table-scroll">${left}</div>`;
-  document.getElementById("csvPreview").innerHTML =
-    `<div class="table-scroll">${right}</div>`;
-
+  document.getElementById("originalPreview").innerHTML = `<div class="table-scroll">${left}</div>`;
+  document.getElementById("csvPreview").innerHTML = `<div class="table-scroll">${right}</div>`;
   document.getElementById("explainArea").innerHTML =
-    Object.values(res.explanationMap)
-      .map(e => `<div class="log">${e}</div>`).join("");
+    Object.values(res.explanationMap).map(e => `<div class="log">${e}</div>`).join("");
 }
 
 /* ================= DOWNLOAD ================= */
@@ -456,18 +456,15 @@ function downloadCurrent() {
 }
 
 function downloadAll() {
-  fileOrder.forEach(name => {
-    downloadCSV(name, fileResults[name].processedRows);
-  });
+  fileOrder.forEach(f => downloadCSV(f, fileResults[f].processedRows));
 }
 
-function downloadCSV(originalName, rows) {
-  const base = originalName.replace(/\.[^/.]+$/, "");
+function downloadCSV(name, rows) {
+  const base = name.replace(/\.[^/.]+$/, "");
   let csv = TEMPLATE_HEADERS.join(",") + "\n";
   rows.forEach(r => {
     csv += TEMPLATE_HEADERS.map(h => r[h]).join(",") + "\n";
   });
-
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
   a.download = `LPP-Updated-${base}.csv`;
