@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Insurance Illustration → CSV</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h2>Insurance Illustration → Template CSV</h2>
+
+  <input type="file" id="fileInput" />
+  <button onclick="processFile()">Generate CSV</button>
+
+  <script>
+    const TEMPLATE_HEADERS = [
+      "Annual premium",
+      "Cash surrender value",
+      "Death benefit",
+      "Adjusted cost basis",
+      "CDA credit",
+      "Dividends paid in cash",
+      "Taxable portion of dividends",
+      "Net cost of pure insurance",
+      "Premiums paid by policy"
+    ];
+
+    const FIELD_MAPPING = {
+      "Annual premium": [
+        "Total Annual Policy Premium",
+        "Total yearly premium",
+        "Total annual premium",
+        "Premiums paid by client (Current rate)"
+      ],
+      "Death benefit": [
+        "Total Policy Death Benefit",
+        "Total death benefit (Primary)",
+        "Total death benefit (Current rate)",
+        "Total payout on death ($)"
+      ],
+      "Cash surrender value": [
+        "Cash surrender value (Current rate)",
+        "Total cash value (Primary)"
+      ],
+      "Adjusted cost basis": [
+        "ACB",
+        "Adjusted cost basis (Primary)",
+        "ACB (Current rate)"
+      ],
+      "CDA credit": [
+        "CDA Credit",
+        "Capital dividend account credit (Primary)",
+        "CDA credit (Current rate)"
+      ],
+      "Dividends paid in cash": [
+        "Dividends paid in cash (Current rate)",
+        "Annual dividend (Primary)"
+      ],
+      "Taxable portion of dividends": [
+        "Taxable Portion of Dividends (Current rate)"
+      ],
+      "Net cost of pure insurance": [
+        "NCPI",
+        "Net cost of pure insurance (Primary)",
+        "NCPI (Current rate)"
+      ],
+      "Premiums paid by policy": [
+        "Premiums paid by client (Current rate)"
+      ]
+    };
+
+    function processFile() {
+      const file = document.getElementById("fileInput").files[0];
+      const reader = new FileReader();
+
+      reader.onload = function (e) {
+        const workbook = XLSX.read(e.target.result, { type: "binary" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        const headers = data[0];
+        const values = data[1];
+
+        let outputRow = {};
+
+        TEMPLATE_HEADERS.forEach(target => {
+          let found = "";
+          (FIELD_MAPPING[target] || []).forEach(source => {
+            const idx = headers.indexOf(source);
+            if (idx !== -1 && found === "") {
+              found = values[idx];
+            }
+          });
+          outputRow[target] = found || "";
+        });
+
+        downloadCSV(outputRow);
+      };
+
+      reader.readAsBinaryString(file);
+    }
+
+    function downloadCSV(row) {
+      const csv =
+        TEMPLATE_HEADERS.join(",") + "\n" +
+        TEMPLATE_HEADERS.map(h => row[h]).join(",");
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "illustration_filled.csv";
+      link.click();
+    }
+  </script>
+</body>
+</html>
