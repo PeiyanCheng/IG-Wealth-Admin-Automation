@@ -2,133 +2,256 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>LPP Insurance CSV Tool</title>
+  <title>LPP Insurance Illustration Tool</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    table { border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #ccc; padding: 4px; }
+    .highlight { background: #fff3cd; }
+    .log { border: 1px solid #ccc; padding: 6px; margin: 6px 0; }
+  </style>
 </head>
 
 <body>
-  <h2>LPP Insurance Illustration → CSV</h2>
+<h2>LPP Insurance Illustration → CSV</h2>
 
-  <input type="file" id="fileInput" />
-  <button onclick="processFile()">Generate CSV</button>
+<input type="file" id="fileInput" />
+<button onclick="processFile()">Process</button>
+<button id="downloadBtn" onclick="downloadConfirmedCSV()" disabled>
+  Confirm & Download CSV
+</button>
 
-  <script>
-    const TEMPLATE_HEADERS = [
-      "Annual premium",
-      "Cash surrender value",
-      "Death benefit",
-      "Adjusted cost basis",
-      "CDA credit",
-      "Dividends paid in cash",
-      "Taxable portion of dividends",
-      "Net cost of pure insurance",
-      "Premiums paid by policy"
-    ];
+<div id="warnings" style="margin-top:15px;"></div>
 
-    const FIELD_MAPPING = {
-      "Annual premium": [
-        "Total Annual Policy Premium",
-        "Total yearly premium",
-        "Total annual premium",
-        "Premiums paid by client (Current rate)"
-      ],
-      "Cash surrender value": [
-        "Cash surrender value (Current rate)",
-        "Total cash value (Primary)"
-      ],
-      "Death benefit": [
-        "Total Policy Death Benefit",
-        "Total death benefit (Primary)",
-        "Total death benefit (Current rate)",
-        "Total payout on death ($)"
-      ],
-      "Adjusted cost basis": [
-        "ACB",
-        "Adjusted cost basis (Primary)",
-        "ACB (Current rate)"
-      ],
-      "CDA credit": [
-        "CDA Credit",
-        "Capital dividend account credit (Primary)",
-        "CDA credit (Current rate)"
-      ],
-      "Dividends paid in cash": [
-        "Dividends paid in cash (Current rate)",
-        "Annual dividend (Primary)"
-      ],
-      "Taxable portion of dividends": [
-        "Taxable Portion of Dividends (Current rate)"
-      ],
-      "Net cost of pure insurance": [
-        "NCPI",
-        "Net cost of pure insurance (Primary)",
-        "NCPI (Current rate)"
-      ],
-      "Premiums paid by policy": [
-        "Premiums paid by client (Current rate)"
-      ]
-    };
+<h3>Mapping Configuration (Editable)</h3>
+<table id="mappingTable">
+  <tr>
+    <th>LPP Field</th>
+    <th>Source Headers ( | separated, Current rate first )</th>
+  </tr>
+</table>
 
-    function processFile() {
-      const file = document.getElementById("fileInput").files[0];
-      if (!file) {
-        alert("Please select a file");
-        return;
-      }
+<div style="display:flex; gap:20px; margin-top:20px;">
+  <div style="width:50%;">
+    <h3>Original Illustration (Extracted Columns)</h3>
+    <div id="originalPreview"></div>
+  </div>
+  <div style="width:50%;">
+    <h3>LPP Template (Preview)</h3>
+    <div id="csvPreview"></div>
+  </div>
+</div>
 
-      const reader = new FileReader();
+<h3>Processing Log (Session Only)</h3>
+<div id="logArea"></div>
 
-      reader.onload = function (e) {
-        const workbook = XLSX.read(e.target.result, { type: "binary" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+<script>
+/* ================= CONFIG ================= */
 
-        const headers = data[0];
-        const rows = data.slice(1); // 所有数据行
+const PREVIEW_LIMIT = 10;
 
-        let outputRows = [];
+const TEMPLATE_HEADERS = [
+  "Annual premium",
+  "Cash surrender value",
+  "Death benefit",
+  "Adjusted cost basis",
+  "CDA credit",
+  "Dividends paid in cash",
+  "Taxable portion of dividends",
+  "Net cost of pure insurance",
+  "Premiums paid by policy"
+];
 
-        rows.forEach(row => {
-          let outputRow = {};
+const DEFAULT_MAPPING = {
+  "Annual premium": "Total annual premium | Monthly premium | Total monthly premium",
+  "Cash surrender value": "Cash surrender value (Current rate)",
+  "Death benefit": "Total death benefit (Current rate)",
+  "Adjusted cost basis": "Adjusted cost basis (Current rate)",
+  "CDA credit": "CDA credit (Current rate)",
+  "Dividends paid in cash": "Dividends paid in cash (Current rate)",
+  "Taxable portion of dividends": "Taxable Portion of Dividends (Current rate)",
+  "Net cost of pure insurance": "NCPI (Current rate)",
+  "Premiums paid by policy": "Premiums paid by dividends (Current rate)"
+};
 
-          TEMPLATE_HEADERS.forEach(target => {
-            let value = "";
+/* ================= STATE ================= */
 
-            (FIELD_MAPPING[target] || []).forEach(source => {
-              const idx = headers.indexOf(source);
-              if (idx !== -1 && value === "") {
-                value = row[idx];
-              }
-            });
+let processedRows = [];
+let matchedColumnIndexes = [];
+let warnings = [];
 
-            outputRow[target] = value || "";
-          });
+/* ================= INIT ================= */
 
-          outputRows.push(outputRow);
+renderMappingTable();
+
+/* ================= HELPERS ================= */
+
+function normalize(text) {
+  return text.toLowerCase().replace(/\s+/g, " ").replace(/\n/g, "").trim();
+}
+
+function renderMappingTable() {
+  const table = document.getElementById("mappingTable");
+  Object.keys(DEFAULT_MAPPING).forEach(key => {
+    const row = table.insertRow();
+    row.insertCell().innerText = key;
+    row.insertCell().innerHTML =
+      `<input style="width:100%" value="${DEFAULT_MAPPING[key]}">`;
+  });
+}
+
+function getMapping() {
+  const map = {};
+  const rows = document.getElementById("mappingTable").rows;
+  for (let i = 1; i < rows.length; i++) {
+    const key = rows[i].cells[0].innerText;
+    map[key] = rows[i].cells[1]
+      .querySelector("input")
+      .value.split("|")
+      .map(v => v.trim());
+  }
+  return map;
+}
+
+/* ================= MAIN ================= */
+
+function processFile() {
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) return alert("Please select a file.");
+
+  warnings = [];
+  matchedColumnIndexes = [];
+  processedRows = [];
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const workbook = XLSX.read(e.target.result, { type: "binary" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    const headers = data[0];
+    const rows = data.slice(1);
+    const mapping = getMapping();
+
+    if (!headers.some(h => normalize(h).includes("current rate"))) {
+      warnings.push("Current rate column not detected.");
+    }
+
+    processedRows = rows.map(row => {
+      let out = {};
+      TEMPLATE_HEADERS.forEach(target => {
+        let value;
+        (mapping[target] || []).forEach(source => {
+          const idx = headers.findIndex(h => normalize(h) === normalize(source));
+          if (idx !== -1 && value === undefined) {
+            value = row[idx];
+            if (!matchedColumnIndexes.includes(idx)) {
+              matchedColumnIndexes.push(idx);
+            }
+          }
         });
 
-        downloadCSV(outputRows, file.name);
-      };
-
-      reader.readAsBinaryString(file);
-    }
-
-    function downloadCSV(rows, originalFileName) {
-      let csv = TEMPLATE_HEADERS.join(",") + "\n";
-
-      rows.forEach(row => {
-        csv += TEMPLATE_HEADERS.map(h => row[h]).join(",") + "\n";
+        if (target === "Annual premium" && value !== undefined) {
+          const annual = Number(value) * 12;
+          if (annual !== Number(value)) {
+            warnings.push("Annual premium converted from monthly (×12).");
+          }
+          out[target] = isNaN(annual) ? "" : annual;
+        } else {
+          out[target] = value === undefined || value === null ? "" : value;
+        }
       });
+      return out;
+    });
 
-      const blob = new Blob([csv], { type: "text/csv" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
+    renderPreviews(headers, rows);
+    renderWarnings();
+    logRun(file.name, processedRows.length);
+    document.getElementById("downloadBtn").disabled = false;
+  };
 
-      const baseName = originalFileName.replace(/\.[^/.]+$/, "");
-      link.download = `LPP-Updated-${baseName}.csv`;
+  reader.readAsBinaryString(file);
+}
 
-      link.click();
+/* ================= UI ================= */
+
+function renderPreviews(headers, rows) {
+  let left = "<table><tr>";
+  headers.forEach((h, i) => {
+    if (matchedColumnIndexes.includes(i)) {
+      left += `<th class="highlight">${h}</th>`;
     }
-  </script>
+  });
+  left += "</tr>";
+
+  rows.slice(0, PREVIEW_LIMIT).forEach(r => {
+    left += "<tr>";
+    headers.forEach((_, i) => {
+      if (matchedColumnIndexes.includes(i)) {
+        left += `<td class="highlight">${r[i] ?? ""}</td>`;
+      }
+    });
+    left += "</tr>";
+  });
+  left += "</table>";
+  document.getElementById("originalPreview").innerHTML = left;
+
+  let right = "<table><tr>";
+  TEMPLATE_HEADERS.forEach(h => right += `<th>${h}</th>`);
+  right += "</tr>";
+
+  processedRows.slice(0, PREVIEW_LIMIT).forEach(r => {
+    right += "<tr>";
+    TEMPLATE_HEADERS.forEach(h => right += `<td>${r[h] ?? ""}</td>`);
+    right += "</tr>";
+  });
+  right += "</table>";
+  document.getElementById("csvPreview").innerHTML = right;
+}
+
+function renderWarnings() {
+  const div = document.getElementById("warnings");
+  if (!warnings.length) {
+    div.innerHTML = "<span style='color:green'>✔ No issues detected.</span>";
+    return;
+  }
+  div.innerHTML =
+    "<ul style='background:#fff3cd;padding:10px'>" +
+    warnings.map(w => `<li>${w}</li>`).join("") +
+    "</ul>";
+}
+
+/* ================= LOG ================= */
+
+function logRun(fileName, rowCount) {
+  const time = new Date().toLocaleString();
+  const html = `
+    <div class="log">
+      <strong>${time}</strong><br>
+      File: ${fileName}<br>
+      Rows processed: ${rowCount}<br>
+      Warnings: ${warnings.length ? warnings.join("; ") : "None"}
+    </div>`;
+  document.getElementById("logArea").innerHTML =
+    html + document.getElementById("logArea").innerHTML;
+}
+
+/* ================= DOWNLOAD ================= */
+
+function downloadConfirmedCSV() {
+  const original = document.getElementById("fileInput").files[0].name;
+  const base = original.replace(/\.[^/.]+$/, "");
+  let csv = TEMPLATE_HEADERS.join(",") + "\n";
+  processedRows.forEach(r => {
+    csv += TEMPLATE_HEADERS.map(h => r[h]).join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `LPP-Updated-${base}.csv`;
+  link.click();
+}
+</script>
 </body>
 </html>
