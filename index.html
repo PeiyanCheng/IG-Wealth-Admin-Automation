@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <title>Insurance Illustration → LPP standardized CSV</title>
@@ -7,10 +7,11 @@
 <!-- Elegant title font -->
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 
-<!-- XLSX (correct CDN, required) -->
+<!-- XLSX (correct CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
+/* ===== Base ===== */
 body {
   background:#f4f6f8;
   font-family:Inter, Arial, sans-serif;
@@ -20,14 +21,13 @@ body {
 
 .page-container {
   max-width:1320px;
-  margin:auto;
+  margin:32px auto;
   padding:32px;
   background:#fff;
   border-radius:18px;
 }
 
 /* ===== Title ===== */
-
 .page-title {
   text-align:center;
   font-family:'Playfair Display', serif;
@@ -44,7 +44,6 @@ body {
 }
 
 /* ===== Actions ===== */
-
 .action-bar {
   display:flex;
   justify-content:center;
@@ -73,44 +72,11 @@ body {
   color:#fff;
 }
 
-.file-input {
-  display:none;
-}
-
-/* ===== File Tabs ===== */
-
-.file-tabs {
-  display:flex;
-  gap:8px;
-  margin-bottom:24px;
-  flex-wrap:wrap;
-}
-
-.file-tab {
-  padding:6px 14px;
-  border-radius:16px;
-  cursor:pointer;
-  font-size:12px;
-  background:#e0e0e0;
-}
-
-.file-tab.active {
-  background:#1976d2;
-  color:#fff;
-}
-
-/* ===== Preview Section Wrapper ===== */
-
-.preview-section {
-  background:#ffffff;
-  border-radius:16px;
-  padding:20px;
-  margin-bottom:28px;
-}
+.file-input { display:none; }
 
 /* ===== Cards ===== */
-
 .card {
+  box-sizing:border-box;           /* ⭐ 核心修复 */
   border-radius:14px;
   padding:16px;
   box-shadow:0 2px 6px rgba(0,0,0,0.05);
@@ -122,50 +88,66 @@ body {
 .card-explain { background:#ffffff; }
 
 .card h3 {
-  margin-top:0;
+  margin:0 0 10px 0;
   font-size:16px;
   font-weight:600;
 }
 
+/* ===== Preview Section ===== */
+.preview-section {
+  background:#ffffff;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:28px;
+  overflow:hidden;                /* ⭐ 最终兜底 */
+}
+
+/* ===== Preview Layout ===== */
+.preview-flex {
+  display:flex;
+  gap:24px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .preview-flex {
+    flex-direction:column;
+  }
+}
+
 /* ===== Tables ===== */
-
-table {
-  border-collapse:collapse;
-  font-size:12px;
-  background:#fff;
-}
-
-th, td {
-  border:1px solid #ccc;
-  padding:4px;
-  white-space:nowrap;
-  text-align:right;
-}
-
-th {
-  text-align:center;
-}
-
-.highlight {
-  background:#fff7cc;
-}
-
 .table-scroll {
-  max-height:320px;
+  max-height:340px;
   overflow:auto;
   border:1px solid #ccc;
   border-radius:8px;
 }
 
-/* Sticky header */
-.table-scroll thead th {
+table {
+  border-collapse:collapse;
+  font-size:12px;
+  background:#fff;
+  width:max-content;
+}
+
+th, td {
+  border:1px solid #ccc;
+  padding:4px 6px;
+  white-space:nowrap;
+  text-align:right;
+}
+
+th {
+  background:#f1f3f6;
+  text-align:center;
   position:sticky;
   top:0;
-  background:#f1f3f6;
   z-index:3;
 }
 
-/* Freeze first column (original illustration only) */
+.highlight { background:#fff7cc; }
+
+/* Freeze first column (original illustration) */
 .freeze-first-col th:first-child,
 .freeze-first-col td:first-child {
   position:sticky;
@@ -179,9 +161,8 @@ th {
 }
 
 /* ===== Rules ===== */
-
 .rule-input {
-  width:520px;
+  width:480px;
   padding:6px;
   border-radius:6px;
   border:1px solid #bbb;
@@ -194,7 +175,6 @@ th {
 }
 
 /* ===== Explanation ===== */
-
 .log {
   background:#fff;
   border:1px solid #ccc;
@@ -217,7 +197,6 @@ th {
 </div>
 
 <!-- ===== ACTION BAR ===== -->
-
 <div class="action-bar">
   <label class="btn btn-upload">
     Upload illustration files
@@ -228,43 +207,38 @@ th {
   <button class="btn btn-primary" onclick="downloadAll()">Download all CSVs</button>
 </div>
 
-<div id="fileTabs" class="file-tabs"></div>
+<div id="fileTabs"></div>
 
 <!-- ===== PREVIEW ===== -->
-
 <div class="preview-section">
-  <div style="display:flex; gap:24px;">
-    <div style="width:50%;" class="card card-illustration">
+  <div class="preview-flex">
+
+    <div class="card card-illustration" style="flex:1;">
       <h3>Illustration review</h3>
       <div id="originalPreview"></div>
     </div>
 
-    <div style="width:50%;" class="card card-lpp">
+    <div class="card card-lpp" style="flex:1;">
       <h3>LPP standardized preview</h3>
       <div id="csvPreview"></div>
     </div>
+
   </div>
 </div>
 
 <!-- ===== RULES ===== -->
-
 <div class="card card-rules">
   <h3>Field matching rules</h3>
   <div class="rule-hint">
-    • Use <b>|</b> to add alternative keywords (OR)<br>
-    • All words in one group must appear in the column header (AND)
+    Use <b>|</b> for OR &nbsp;•&nbsp; Words in one group are AND
   </div>
 
   <table id="ruleTable">
-    <tr>
-      <th>LPP field</th>
-      <th>Keywords</th>
-    </tr>
+    <tr><th>LPP field</th><th>Keywords</th></tr>
   </table>
 </div>
 
 <!-- ===== EXPLANATION ===== -->
-
 <div class="card card-explain">
   <h3>Matching explanation</h3>
   <div id="explainArea"></div>
@@ -272,7 +246,6 @@ th {
 
 <script>
 /* ================= CONFIG ================= */
-
 const TEMPLATE_HEADERS = [
   "Annual premium","Cash surrender value","Death benefit","Adjusted cost basis",
   "CDA credit","Dividends paid in cash","Taxable portion of dividends",
@@ -292,47 +265,41 @@ const DEFAULT_RULES = {
 };
 
 /* ================= STATE ================= */
-
 let fileResults = {};
 let fileOrder = [];
 let currentFile = "";
 
 /* ================= INIT ================= */
-
 window.onload = () => {
   const rules = JSON.parse(localStorage.getItem("lpp_rules") || "null") || DEFAULT_RULES;
   const table = document.getElementById("ruleTable");
 
-  Object.entries(rules).forEach(([field, rule]) => {
+  Object.entries(rules).forEach(([f,r]) => {
     const row = table.insertRow();
-    row.insertCell().innerText = field;
-    row.insertCell().innerHTML =
-      `<input class="rule-input" value="${rule}">`;
+    row.insertCell().innerText = f;
+    row.insertCell().innerHTML = `<input class="rule-input" value="${r}">`;
   });
 };
 
 /* ================= HELPERS ================= */
-
 const norm = t => t.toLowerCase().trim();
 
 function matchRule(header, rule) {
+  if (!rule) return null;
   const h = norm(header);
   const groups = rule.split("|").map(g => g.trim()).filter(Boolean);
   for (const g of groups) {
-    const words = g.split(/\s+/);
-    if (words.every(w => h.includes(w))) return g;
+    if (g.split(/\s+/).every(w => h.includes(w))) return g;
   }
   return null;
 }
 
-function formatNumber(v) {
+function fmt(v) {
   const n = Number(v);
-  if (isNaN(n)) return "0.00";
-  return n.toFixed(2);
+  return isNaN(n) ? "0.00" : n.toFixed(2);
 }
 
 /* ================= CORE ================= */
-
 function processFiles() {
   const files = document.getElementById("fileInput").files;
   if (!files.length) return;
@@ -347,10 +314,10 @@ function processFiles() {
   });
   localStorage.setItem("lpp_rules", JSON.stringify(rules));
 
-  Array.from(files).forEach(file => processSingleFile(file, rules));
+  Array.from(files).forEach(file => processSingle(file, rules));
 }
 
-function processSingleFile(file, rules) {
+function processSingle(file, rules) {
   const reader = new FileReader();
   reader.onload = e => {
     const wb = XLSX.read(e.target.result, { type:"binary" });
@@ -359,115 +326,76 @@ function processSingleFile(file, rules) {
 
     const headers = data[0];
     const rows = data.slice(1);
-
     let matchedIdx = [];
-    let explanationMap = {};
-    let processedRows = rows.map(row => {
-      const out = {};
-      TEMPLATE_HEADERS.forEach(field => {
-        let idx = -1, ruleUsed;
-        headers.forEach((h,i) => {
-          const r = matchRule(h, rules[field]);
-          if (r && idx === -1) { idx = i; ruleUsed = r; }
-        });
-
-        if (idx !== -1) {
-          let v = row[idx];
-          if (norm(headers[idx]).includes("monthly") && !isNaN(v)) v *= 12;
-          out[field] = v || 0;
+    let explain = {};
+    let processed = rows.map(r => {
+      let o = {};
+      TEMPLATE_HEADERS.forEach(f => {
+        let idx=-1, used;
+        headers.forEach((h,i)=>{ if(idx===-1){const m=matchRule(h,rules[f]); if(m){idx=i;used=m}}});
+        if(idx>-1){
+          let v=r[idx];
+          if(norm(headers[idx]).includes("monthly") && !isNaN(v)) v*=12;
+          o[f]=v||0;
           matchedIdx.push(idx);
-          if (!explanationMap[field]) {
-            explanationMap[field] =
-              `${field} ← "${headers[idx]}" (matched by: ${ruleUsed})`;
-          }
+          explain[f]=`${f} ← "${headers[idx]}"`;
         } else {
-          out[field] = 0;
-          if (!explanationMap[field]) {
-            explanationMap[field] =
-              `⚠ ${field}: no exact matching column found`;
-          }
+          o[f]=0;
+          explain[f]=`⚠ ${f} not matched`;
         }
       });
-      return out;
+      return o;
     });
 
-    fileResults[file.name] = { headers, rows, matchedIdx, processedRows, explanationMap };
+    fileResults[file.name]={headers,rows,matchedIdx,processed,explain};
     fileOrder.push(file.name);
-    if (!currentFile) currentFile = file.name;
-
-    renderTabs();
-    renderCurrent();
+    if(!currentFile) currentFile=file.name;
+    render();
   };
   reader.readAsBinaryString(file);
 }
 
-/* ================= UI ================= */
+/* ================= RENDER ================= */
+function render() {
+  const r=fileResults[currentFile];
+  if(!r) return;
 
-function renderTabs() {
-  document.getElementById("fileTabs").innerHTML =
-    fileOrder.map(f =>
-      `<div class="file-tab ${f===currentFile?"active":""}" onclick="selectFile('${f}')">${f}</div>`
-    ).join("");
-}
-
-function selectFile(f) {
-  currentFile = f;
-  renderTabs();
-  renderCurrent();
-}
-
-function renderCurrent() {
-  const res = fileResults[currentFile];
-  if (!res) return;
-
-  let left = "<table class='freeze-first-col'><thead><tr>";
-  res.headers.forEach(h => left += `<th>${h}</th>`);
-  left += "</tr></thead><tbody>";
-  res.rows.forEach(r => {
-    left += "<tr>";
-    res.headers.forEach((_,i) => {
-      left += `<td class="${res.matchedIdx.includes(i)?"highlight":""}">${r[i] ?? ""}</td>`;
-    });
-    left += "</tr>";
+  let left="<table class='freeze-first-col'><thead><tr>";
+  r.headers.forEach(h=>left+=`<th>${h}</th>`);
+  left+="</tr></thead><tbody>";
+  r.rows.forEach(row=>{
+    left+="<tr>";
+    row.forEach((c,i)=>left+=`<td class='${r.matchedIdx.includes(i)?"highlight":""}'>${c??""}</td>`);
+    left+="</tr>";
   });
-  left += "</tbody></table>";
+  left+="</tbody></table>";
 
-  let right = "<table><thead><tr>";
-  TEMPLATE_HEADERS.forEach(h => right += `<th>${h}</th>`);
-  right += "</tr></thead><tbody>";
-  res.processedRows.forEach(r => {
-    right += "<tr>";
-    TEMPLATE_HEADERS.forEach(h => right += `<td>${formatNumber(r[h])}</td>`);
-    right += "</tr>";
+  let right="<table><thead><tr>";
+  TEMPLATE_HEADERS.forEach(h=>right+=`<th>${h}</th>`);
+  right+="</tr></thead><tbody>";
+  r.processed.forEach(row=>{
+    right+="<tr>";
+    TEMPLATE_HEADERS.forEach(h=>right+=`<td>${fmt(row[h])}</td>`);
+    right+="</tr>";
   });
-  right += "</tbody></table>";
+  right+="</tbody></table>";
 
-  document.getElementById("originalPreview").innerHTML = `<div class="table-scroll">${left}</div>`;
-  document.getElementById("csvPreview").innerHTML = `<div class="table-scroll">${right}</div>`;
-  document.getElementById("explainArea").innerHTML =
-    Object.values(res.explanationMap).map(e => `<div class="log">${e}</div>`).join("");
+  document.getElementById("originalPreview").innerHTML=`<div class='table-scroll'>${left}</div>`;
+  document.getElementById("csvPreview").innerHTML=`<div class='table-scroll'>${right}</div>`;
+  document.getElementById("explainArea").innerHTML=Object.values(r.explain).map(e=>`<div class='log'>${e}</div>`).join("");
 }
 
 /* ================= DOWNLOAD ================= */
+function downloadCurrent(){ if(currentFile) save(currentFile); }
+function downloadAll(){ fileOrder.forEach(save); }
 
-function downloadCurrent() {
-  if (!currentFile) return;
-  downloadCSV(currentFile, fileResults[currentFile].processedRows);
-}
-
-function downloadAll() {
-  fileOrder.forEach(f => downloadCSV(f, fileResults[f].processedRows));
-}
-
-function downloadCSV(name, rows) {
-  const base = name.replace(/\.[^/.]+$/, "");
-  let csv = TEMPLATE_HEADERS.join(",") + "\n";
-  rows.forEach(r => {
-    csv += TEMPLATE_HEADERS.map(h => r[h]).join(",") + "\n";
-  });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
-  a.download = `LPP-Updated-${base}.csv`;
+function save(name){
+  const rows=fileResults[name].processed;
+  let csv=TEMPLATE_HEADERS.join(",")+"\n";
+  rows.forEach(r=>csv+=TEMPLATE_HEADERS.map(h=>r[h]).join(",")+"\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download=`LPP-Updated-${name.replace(/\.[^/.]+$/,"")}.csv`;
   a.click();
 }
 </script>
