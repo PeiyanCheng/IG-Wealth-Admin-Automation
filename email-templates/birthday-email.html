@@ -1,238 +1,167 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Birthday Automation - IG Wealth Admin</title>
-
-<link rel="stylesheet" href="../style.css">
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-<style>
-    /* # Section: Tool Specific Styles */
-    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-    @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
-    
-    .advisor-btn { padding: 8px 16px; border: 1px solid #ddd; border-radius: 20px; background: #fff; cursor: pointer; font-size: 13px; margin: 4px; transition: 0.2s; }
-    .advisor-btn.active { background: var(--primary); color: white; font-weight: 600; border-color: var(--primary); }
-    
-    textarea { width: 100%; height: 120px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Inter', sans-serif; font-size: 13px; margin: 10px 0; box-sizing: border-box; }
-    .email-preview { background: #f9f9f9; border: 1px solid #eee; padding: 15px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; color: #444; min-height: 100px; }
-    
-    .var-tag { display: inline-block; padding: 4px 8px; background: #e3f2fd; color: #1565c0; border-radius: 4px; font-size: 11px; margin: 5px 5px 0 0; cursor: pointer; border: 1px solid #bbdefb; }
-    .var-tag:hover { background: #bbdefb; }
-
-    .status-today { color: #d32f2f; font-weight: bold; background: #ffebee; padding: 2px 6px; border-radius: 4px; }
-</style>
+    <meta charset="UTF-8">
+    <title>Daily Birthday Automation</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        .advisor-btn { padding: 8px 16px; border: 1px solid #ddd; border-radius: 20px; background: #fff; cursor: pointer; font-size: 13px; margin: 4px; }
+        .advisor-btn.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: 600; }
+        .var-container { margin: 15px 0; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d0e3ff; }
+        .var-tag { display: inline-block; background: #fff; border: 1px solid #1976d2; color: #1976d2; padding: 4px 10px; border-radius: 4px; font-size: 11px; margin: 3px; cursor: pointer; font-weight: 600; }
+        textarea { width: 100%; height: 120px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Inter', sans-serif; font-size: 13px; margin: 10px 0; box-sizing: border-box; }
+        
+        /* Instruction Section Styling */
+        .instruction-box { background: #fff8e1; border-left: 5px solid #ffc107; padding: 20px; margin-top: 30px; border-radius: 8px; }
+        .step-num { display: inline-block; width: 24px; height: 24px; background: #ffc107; color: #000; text-align: center; border-radius: 50%; font-weight: bold; margin-right: 10px; }
+        .instruction-step { margin-bottom: 15px; font-size: 14px; line-height: 1.6; }
+    </style>
 </head>
-
 <body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-brand"><span>← Back to Dashboard</span></a>
+    </nav>
 
-<nav class="navbar">
-    <a href="../index.html" class="nav-brand"><span>← Back to Dashboard</span></a>
-</nav>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Daily Birthday Automation</h1>
+            <div style="font-size: 14px; color: #666;">IG Wealth Admin Automation Tool</div>
+        </div>
 
-<div class="container">
-    <div class="page-header">
-        <h1 class="page-title">Birthday Email Automation</h1>
-        <div style="font-size: 14px; color: #666;">IG Wealth Admin Automation Tool</div>
-    </div>
+        <div class="card" style="text-align: center; margin-bottom: 25px;">
+            <label class="btn btn-upload">📂 Upload Birthday Report<input id="fileInput" style="display:none;" type="file" onchange="loadFile()"></label>
+            <div id="fileStatus" style="margin-top: 10px; font-size: 13px; color: #1976d2;">Ready to process file</div>
+        </div>
 
-    <div class="card" style="text-align: center; margin-bottom: 30px;">
-        <label class="btn btn-upload">
-            📂 Upload Master Client List
-            <input id="fileInput" style="display:none;" type="file" onchange="loadFile()">
-        </label>
-        <div id="fileStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary);">Ready to upload...</div>
-    </div>
+        <div id="advisorSection" class="card" style="display:none; margin-bottom: 25px;">
+            <h3>Select Servicing Advisor</h3>
+            <div id="advisorList"></div>
+        </div>
 
-    <div id="advisorSection" class="card" style="display:none; margin-bottom: 24px;">
-        <h3 style="margin-top:0;">1. Filter by Servicing Advisor</h3>
-        <div id="advisorList"></div>
-    </div>
-
-    <div id="mainSection" class="config-grid" style="display:none;">
-        <div class="card">
-            <h3 style="margin-top:0;">2. Template Editor</h3>
-            <label style="font-size:12px; font-weight:600;">Subject Line</label>
-            <input type="text" id="subjectInput" value="Happy Birthday {{FirstName}}! 🎉" oninput="renderPreview()" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px; box-sizing: border-box;">
+        <div id="mainSection" class="card" style="display:none;">
+            <h3>Generate VBA Data File</h3>
             
-            <div style="margin-bottom:8px;">
-                <span class="var-tag" onclick="insertVar('{{FirstName}}')">+ First Name</span>
-                <span class="var-tag" onclick="insertVar('{{LastName}}')">+ Last Name</span>
-                <span class="var-tag" onclick="insertVar('{{Advisor}}')">+ Advisor</span>
+            <div class="var-container">
+                <span class="var-tag" onclick="insertVar('{{FirstName}}')">{{FirstName}}</span>
+                <span class="var-tag" onclick="insertVar('{{AdvisorName}}')">{{AdvisorName}}</span>
             </div>
-            <textarea id="bodyInput" oninput="renderPreview()">Dear {{FirstName}},
 
-Wishing you a wonderful birthday! Hope you have a fantastic day.
+            <textarea id="bodyInput">Dear {{FirstName}},
+
+Wishing you a fantastic birthday!
 
 Best regards,
-{{Advisor}}</textarea>
+Yan Cheng</textarea>
+
+            <button class="btn btn-primary" onclick="downloadVbaExcel()" style="width: 100%; padding: 15px;">Download Yan_Cheng_Birthday_Automation.xlsx</button>
         </div>
 
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0;">3. Preview (Today's Birthdays)</h3>
-                <button class="btn btn-primary" onclick="downloadExcel()">Download Smart Excel</button>
+        <div class="instruction-box">
+            <h2 style="margin-top:0;">📋 How to use this file with Outlook</h2>
+            <p>Follow these simple steps to link this data to your automated Outlook drafts:</p>
+            
+            <div class="instruction-step">
+                <span class="step-num">1</span> 
+                <strong>Open your Master VBA Template:</strong> Open the Excel file that contains your "SendBirthdayEmails" macro.
             </div>
-            <div class="email-preview" id="previewArea">Select an advisor or upload a file to see today's matches...</div>
-            <div id="matchSummary" style="font-size:12px; color:#666; margin-top:10px;"></div>
+
+            <div class="instruction-step">
+                <span class="step-num">2</span> 
+                <strong>Clear Old Data:</strong> Go to the sheet where client names are stored and delete any old information.
+            </div>
+
+            <div class="instruction-step">
+                <span class="step-num">3</span> 
+                <strong>Copy & Paste:</strong> Open the <em>Yan_Cheng_Birthday_Automation.xlsx</em> file you just downloaded. Copy all the data and paste it into your Master VBA Template.
+            </div>
+
+            <div class="instruction-step">
+                <span class="step-num">4</span> 
+                <strong>Run Macro:</strong> Click the "Run" button (or press <code>Alt + F8</code>) and select <b>SendBirthdayEmails</b>. Outlook will now create your drafts!
+            </div>
+            
+            <p style="font-size: 12px; color: #777; font-style: italic; margin-top: 10px;">
+                Note: Ensure your Outlook is open before running the script.
+            </p>
         </div>
     </div>
-</div>
 
-<script>
-    /* # Section: Core Logic */
-    let rawData = [], headers = [], selectedAdvisor = null;
-    let advIdx = -1, nameIdx = -1, emailIdx = -1, dateIdx = -1;
+    <script>
+        let rawData = [], headers = [], selectedAdvisor = null;
+        let advIdx = -1, nameIdx = -1, emailIdx = -1, dateIdx = -1;
 
-    function loadFile() {
-        const file = document.getElementById("fileInput").files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = e => {
-            const data = new Uint8Array(e.target.result);
-            const wb = XLSX.read(data, {type: 'array', cellDates: true});
-            const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
-            
-            headers = jsonData[0];
-            rawData = jsonData.slice(1);
-            
-            // Map Columns
-            advIdx = headers.findIndex(h => String(h).trim() === "Servicing Advisor");
-            nameIdx = headers.findIndex(h => /name/i.test(h));
-            emailIdx = headers.findIndex(h => /email/i.test(h));
-            dateIdx = headers.findIndex(h => /birth/i.test(h));
+        function loadFile() {
+            const file = document.getElementById("fileInput").files[0];
+            const reader = new FileReader();
+            reader.onload = e => {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, {type: 'array', cellDates: true});
+                const allRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
+                
+                // Find the header row containing Servicing Advisor
+                let hRow = allRows.findIndex(row => row.some(cell => String(cell || "").includes("Servicing Advisor")));
+                if (hRow === -1) hRow = 0;
 
-            document.getElementById("fileStatus").innerText = "Successfully Loaded: " + file.name;
-            
-            // Show/Hide Advisor Section
-            if (advIdx !== -1) {
-                renderAdvisorButtons();
-                document.getElementById("advisorSection").style.display = "block";
-            } else {
-                document.getElementById("advisorSection").style.display = "none";
-                selectedAdvisor = null; // No filtering
-            }
-            
-            document.getElementById("mainSection").style.display = "grid";
-            renderPreview();
-        };
-        reader.readAsArrayBuffer(file);
-    }
+                headers = allRows[hRow].map(h => String(h || "").trim());
+                rawData = allRows.slice(hRow + 1);
+                
+                advIdx = headers.indexOf("Servicing Advisor");
+                nameIdx = headers.findIndex(h => /name/i.test(h));
+                emailIdx = headers.findIndex(h => /email|primary/i.test(h));
+                dateIdx = headers.findIndex(h => /birth|date/i.test(h));
 
-    function renderAdvisorButtons() {
-        const list = [...new Set(rawData.map(r => r[advIdx]))].filter(Boolean).sort();
-        const container = document.getElementById("advisorList");
-        container.innerHTML = "";
-        
-        list.forEach(adv => {
-            const btn = document.createElement("button");
-            btn.className = "advisor-btn";
-            btn.innerText = adv;
-            btn.onclick = () => {
-                selectedAdvisor = adv;
-                document.querySelectorAll('.advisor-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                renderPreview();
+                document.getElementById("fileStatus").innerText = "Loaded " + rawData.length + " rows.";
+                
+                if (advIdx !== -1) {
+                    renderAdvisors();
+                    document.getElementById("advisorSection").style.display = "block";
+                }
+                document.getElementById("mainSection").style.display = "block";
             };
-            container.appendChild(btn);
-        });
-    }
-
-    function renderPreview() {
-        const today = new Date();
-        const tMonth = today.getMonth();
-        const tDate = today.getDate();
-        
-        let filtered = rawData;
-        if (advIdx !== -1 && selectedAdvisor) {
-            filtered = rawData.filter(r => r[advIdx] === selectedAdvisor);
+            reader.readAsArrayBuffer(file);
         }
 
-        // Filter for TODAY
-        const matches = filtered.filter(r => {
-            const d = new Date(r[dateIdx]);
-            return d.getMonth() === tMonth && d.getDate() === tDate;
-        });
-
-        const previewContainer = document.getElementById("previewArea");
-        const summary = document.getElementById("matchSummary");
-        
-        if (matches.length === 0) {
-            previewContainer.innerText = "No birthdays matching today's date.";
-            summary.innerText = "Total clients for selection: " + filtered.length;
-            return;
+        function renderAdvisors() {
+            const list = [...new Set(rawData.map(r => r[advIdx]))].filter(Boolean).sort();
+            const container = document.getElementById("advisorList");
+            container.innerHTML = "";
+            list.forEach(adv => {
+                const btn = document.createElement("button");
+                btn.className = "advisor-btn"; btn.innerText = adv;
+                btn.onclick = () => {
+                    selectedAdvisor = adv;
+                    document.querySelectorAll('.advisor-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+                container.appendChild(btn);
+            });
         }
 
-        const sample = matches[0];
-        const firstName = String(sample[nameIdx]).split(" ")[0];
-        const advisorName = selectedAdvisor || "Your Advisor";
-
-        const subj = document.getElementById("subjectInput").value
-            .replaceAll("{{FirstName}}", firstName)
-            .replaceAll("{{Advisor}}", advisorName);
-        
-        const body = document.getElementById("bodyInput").value
-            .replaceAll("{{FirstName}}", firstName)
-            .replaceAll("{{Advisor}}", advisorName);
-
-        previewContainer.innerText = `To: ${sample[emailIdx] || 'No Email Found'}\nSubject: ${subj}\n\n${body}`;
-        summary.innerHTML = `<span class="status-today">Matched ${matches.length} birthdays for today!</span>`;
-    }
-
-    function insertVar(text) {
-        const el = document.getElementById("bodyInput");
-        const s = el.selectionStart;
-        el.value = el.value.substring(0, s) + text + el.value.substring(el.selectionEnd);
-        renderPreview();
-    }
-
-    function downloadExcel() {
-        let filtered = rawData;
-        if (advIdx !== -1 && selectedAdvisor) {
-            filtered = rawData.filter(r => r[advIdx] === selectedAdvisor);
+        function insertVar(text) {
+            const el = document.getElementById("bodyInput");
+            const s = el.selectionStart;
+            el.value = el.value.substring(0, s) + text + el.value.substring(el.selectionEnd);
+            el.focus();
         }
 
-        const exportData = [
-            ["Client Name", "Email", "Birth Month", "Birth Day", "Is Birthday Today?", "Outlook Draft Link"]
-        ];
+        function downloadVbaExcel() {
+            let filtered = rawData;
+            if (advIdx !== -1 && selectedAdvisor) {
+                filtered = rawData.filter(r => r[advIdx] === selectedAdvisor);
+            }
 
-        const templateSubj = document.getElementById("subjectInput").value;
-        const templateBody = document.getElementById("bodyInput").value;
+            // Standardized Column Output for VBA: A: Name, B: Date, C: Email
+            const exportData = [["Name", "Birthdate", "Email"]];
+            filtered.forEach(c => {
+                exportData.push([c[nameIdx], c[dateIdx], c[emailIdx]]);
+            });
 
-        filtered.forEach((c, idx) => {
-            const rowNum = idx + 2; // Excel rows start at 1, header is 1
-            const fullName = String(c[nameIdx] || "Client");
-            const firstName = fullName.split(" ")[0];
-            const email = c[emailIdx] || "";
-            const bDate = new Date(c[dateIdx]);
-            const bMonth = bDate.getMonth() + 1;
-            const bDay = bDate.getDate();
-            const advName = selectedAdvisor || "Your Advisor";
-
-            // # Section: Dynamic Excel Formula for "Today"
-            // This formula checks if the Month and Day match the current date in Excel
-            const isTodayFormula = { f: `IF(AND(MONTH(TODAY())=C${rowNum}, DAY(TODAY())=D${rowNum}), "★ TODAY", "")` };
-
-            // Outlook Link
-            const finalSubj = templateSubj.replaceAll("{{FirstName}}", firstName).replaceAll("{{Advisor}}", advName);
-            const finalBody = templateBody.replaceAll("{{FirstName}}", firstName).replaceAll("{{Advisor}}", advName);
-            const mailto = `mailto:${email}?subject=${encodeURIComponent(finalSubj)}&body=${encodeURIComponent(finalBody)}`;
-            
-            const linkFormula = { t: 's', f: `HYPERLINK("${mailto}", "Draft Email")`, v: "Draft Email" };
-
-            exportData.push([fullName, email, bMonth, bDay, isTodayFormula, linkFormula]);
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Daily Birthday List");
-        
-        const fileName = selectedAdvisor ? `${selectedAdvisor}_Daily_Birthdays.xlsx` : "Master_Daily_Birthdays.xlsx";
-        XLSX.writeFile(wb, fileName);
-    }
-</script>
-
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, "Yan_Cheng_Birthday_Automation.xlsx");
+        }
+    </script>
 </body>
 </html>
