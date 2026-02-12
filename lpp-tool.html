@@ -10,43 +10,52 @@
 
 <style>
     /* =========================================
-       INTERNAL STYLES (Specific to this page)
+       INTERNAL STYLES (Overrides & Specifics)
        ========================================= */
-    
-    /* Action Bar: Holds the Upload and Download buttons */
+
+    /* --- FIXED: STICKY HEADER FORCE --- */
+    /* This forces the header to stick, even if style.css fails */
+    .table-scroll th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 10 !important;
+        background: #f8f9fa !important; /* Grey background so text doesn't overlap */
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    /* Action Bar: Holds Upload & Download buttons */
     .action-bar {
         display: flex; justify-content: space-between; align-items: center;
         gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
     }
-    
-    /* Hides the ugly default file input button */
+
+    /* Hide the ugly default file input */
     .file-input { display: none; }
-    
+
     /* File Tabs Area */
     .file-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
-    
+
     /* Individual Tab Styling */
-    .file-tab { 
-        padding: 6px 14px; border-radius: 14px; font-size: 12px; 
+    .file-tab {
+        padding: 6px 14px; border-radius: 14px; font-size: 12px;
         cursor: pointer; background: #e0e0e0; transition: 0.2s;
     }
-    .file-tab.active { background: var(--primary); color: #fff; } /* Active tab is Blue */
+    .file-tab.active { background: var(--primary); color: #fff; }
 
-    /* Preview Container (Side by Side tables) */
+    /* Layout: Side-by-side tables */
     .preview-flex { display: flex; gap: 24px; margin-bottom: 24px; }
-    /* On mobile, stack them vertically */
     @media (max-width: 900px) { .preview-flex { flex-direction: column; } }
 
-    /* Card Containers for tables */
+    /* Cards */
     .card { flex: 1; min-width: 0; border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); background: #fff; }
-    .card-illustration { background: #f1fbf4; } /* Green tint */
-    .card-lpp { background: #f1f7ff; }         /* Blue tint */
+    .card-illustration { background: #f1fbf4; }
+    .card-lpp { background: #f1f7ff; }
     .card-rules { background: #fff; border: 1px solid #eee; }
 
-    /* Highlights columns found in the Excel */
+    /* Highlights matched columns */
     .highlight { background: #fff7cc; }
 
-    /* Rule Input Styling */
+    /* Rules Input Area */
     .rule-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
     .rule-label { width: 200px; font-weight: 600; font-size: 13px; }
     .rule-input { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; }
@@ -115,14 +124,13 @@
 </div>
 
 <script>
-// CONFIG: These are the exact headers required for the output CSV
+// CONFIG
 const TEMPLATE_FIELDS = [
   "Annual premium", "Cash surrender value", "Death benefit",
   "Adjusted cost basis", "CDA credit", "Dividends paid in cash",
   "Taxable portion of dividends", "Net cost of pure insurance", "Premiums paid by policy"
 ];
 
-// DEFAULT RULES: Dictionary mapping Field Name -> Search Keywords
 let rules = {
   "Annual premium": "total annual policy premium | annualized premium | monthly premium | total annual premium | total yearly premium",
   "Cash surrender value": "cash surrender | total cash value",
@@ -135,57 +143,44 @@ let rules = {
   "Premiums paid by policy": "premium dividend"
 };
 
-// GLOBAL VARIABLES to store file data
 let rawFiles = {};
 let fileOrder = [];
 let currentFile = "";
 
-// HELPER: Normalize text to lowercase for easier matching
+// HELPERS
 const normalize = t => String(t || "").toLowerCase();
-
-// HELPER: Format numbers (ensure 2 decimal places)
 const formatNumber = v => {
   const n = Number(v);
   return isNaN(n) ? "0.00" : n.toFixed(2);
 };
 
-// ===================================
-// 1. LOAD FILES FUNCTION
-// ===================================
+// 1. LOAD FILES
 function loadFiles() {
   const files = document.getElementById("fileInput").files;
   rawFiles = {};
   fileOrder = [];
   currentFile = "";
 
-  // Loop through uploaded files
   Array.from(files).forEach(file => {
     const reader = new FileReader();
     reader.onload = e => {
-      // Use SheetJS to read the Excel file
       const wb = XLSX.read(e.target.result, { type: "binary" });
-      const sheet = wb.Sheets[wb.SheetNames[0]]; // Read first sheet
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Convert to Array
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Store header and rows separately
       rawFiles[file.name] = { headers: data[0], rows: data.slice(1) };
       fileOrder.push(file.name);
       if (!currentFile) currentFile = file.name;
 
-      // Update UI
       renderTabs();
       render();
     };
     reader.readAsBinaryString(file);
   });
-  renderRules(); // Draw the rules input boxes
+  renderRules();
 }
 
-// ===================================
-// 2. UI RENDER FUNCTIONS
-// ===================================
-
-// Renders the Rules Input boxes at the bottom
+// 2. RENDER RULES
 function renderRules() {
   const c = document.getElementById("rulesContainer");
   c.innerHTML = "";
@@ -201,71 +196,60 @@ function renderRules() {
   });
 }
 
-// Renders the File Tabs (Top of preview)
+// 3. RENDER TABS
 function renderTabs() {
   const tabs = document.getElementById("fileTabs");
   tabs.innerHTML = "";
   fileOrder.forEach(name => {
     const t = document.createElement("div");
-    // Add 'active' class if this is the current file
     t.className = "file-tab" + (name === currentFile ? " active" : "");
     t.innerText = name;
     t.onclick = () => {
-      currentFile = name; // Switch file
-      renderTabs();       // Re-draw tabs
-      render();           // Re-draw tables
+      currentFile = name;
+      renderTabs();
+      render();
     };
     tabs.appendChild(t);
   });
 }
 
-// ===================================
-// 3. MAIN LOGIC (Matching & Rendering Tables)
-// ===================================
+// 4. RENDER TABLES
 function render() {
   const file = rawFiles[currentFile];
   if (!file) return;
 
   const { headers, rows } = file;
-  let matchedIndexes = []; // Keep track of which original columns we used
+  let matchedIndexes = [];
 
-  // PROCESS DATA: Create the LPP output format
   let outputs = rows.map(r => {
     let out = {};
     TEMPLATE_FIELDS.forEach(field => {
-      // Split keywords by "|" and clean whitespace
       const keywords = rules[field].split("|").map(k => k.trim());
-      
-      // Find which column index in the Excel matches a keyword
       const idx = headers.findIndex(h => keywords.some(k => normalize(h).includes(normalize(k))));
       
       let val = idx >= 0 ? r[idx] : 0;
-      
-      // SPECIAL LOGIC: If header contains "monthly", multiply by 12
       if (idx >= 0 && normalize(headers[idx]).includes("monthly") && !isNaN(val)) {
         val *= 12;
       }
       out[field] = val || 0;
-      
-      if (idx >= 0) matchedIndexes.push(idx); // Mark this column as "Found"
+      if (idx >= 0) matchedIndexes.push(idx);
     });
     return out;
   });
 
-  // GENERATE HTML FOR ORIGINAL TABLE
+  // Original Table
   let o = "<table><thead><tr>";
   headers.forEach(h => o += `<th>${h}</th>`);
   o += "</tr></thead><tbody>";
   rows.forEach(r => {
     o += "<tr>";
-    // Check if column index (i) was matched, if so, add 'highlight' class
     r.forEach((c,i) => o += `<td class="${matchedIndexes.includes(i) ? "highlight" : ""}">${c ?? ""}</td>`);
     o += "</tr>";
   });
   o += "</tbody></table>";
   document.getElementById("originalPreview").innerHTML = o;
 
-  // GENERATE HTML FOR LPP OUTPUT TABLE
+  // LPP Table
   let l = "<table><thead><tr>";
   TEMPLATE_FIELDS.forEach(h => l += `<th>${h}</th>`);
   l += "</tr></thead><tbody>";
@@ -278,9 +262,7 @@ function render() {
   document.getElementById("csvPreview").innerHTML = l;
 }
 
-// ===================================
-// 4. DOWNLOAD FUNCTIONS
-// ===================================
+// 5. DOWNLOAD
 function downloadCurrent() { if (currentFile) exportCSV(currentFile); }
 function downloadAll() { fileOrder.forEach(exportCSV); }
 
@@ -288,7 +270,6 @@ function exportCSV(name) {
   const rows = rawFiles[name].rows;
   const headers = rawFiles[name].headers;
   
-  // Re-run the processing logic to ensure we get the latest rule updates
   let processed = rows.map(r => {
     let out = {};
     TEMPLATE_FIELDS.forEach(field => {
@@ -301,13 +282,11 @@ function exportCSV(name) {
     return out;
   });
 
-  // Build CSV String
   let csv = TEMPLATE_FIELDS.join(",") + "\n";
   processed.forEach(r => {
     csv += TEMPLATE_FIELDS.map(h => r[h]).join(",") + "\n";
   });
 
-  // Trigger Download
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   a.download = `LPP-Updated-${name.replace(/\.[^/.]+$/, "")}.csv`;
