@@ -1,1 +1,395 @@
+<link rel="stylesheet" href="../style.css"> ...
+<nav class="navbar">
+    <a href="../index.html" class="nav-brand"><span>← Back to Dashboard</span></a>
+</nav>
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Birthday Email Automation</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+    /* =========================================
+       PAGE SPECIFIC STYLES
+       ========================================= */
+    
+    .config-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+    @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
+
+    /* Advisor Selection Buttons */
+    .advisor-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .advisor-btn {
+        padding: 8px 16px;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .advisor-btn:hover { background: #f0f4f8; border-color: var(--primary); }
+    
+    .advisor-btn.active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+        font-weight: 600;
+    }
+
+    /* Template Inputs */
+    input[type="text"], textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+    }
+    
+    textarea { height: 120px; resize: vertical; }
+
+    /* Variable Tags */
+    .var-tag {
+        display: inline-block;
+        padding: 4px 8px;
+        background: #e3f2fd;
+        color: #1565c0;
+        border-radius: 4px;
+        font-size: 11px;
+        margin-right: 5px;
+        cursor: pointer;
+        border: 1px solid #bbdefb;
+    }
+    .var-tag:hover { background: #bbdefb; }
+
+    /* Preview Box */
+    .email-preview {
+        background: #f9f9f9;
+        border: 1px solid #eee;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 13px;
+        white-space: pre-wrap; /* Keeps formatting */
+        color: #444;
+    }
+</style>
+</head>
+
+<body>
+
+<nav class="navbar">
+    <a href="index.html" class="nav-brand">
+        <span>← Back to Dashboard</span>
+    </a>
+    <div class="nav-search">
+        <input type="text" placeholder="Search..." disabled style="opacity: 0.6; cursor: not-allowed; background: #eee;">
+    </div>
+</nav>
+
+<div class="container">
+
+    <div class="page-header">
+        <div class="page-title">Birthday Email Automation</div>
+        <div style="font-size: 14px; color: #666;">Filter by Advisor → Customize Template → Download Smart Excel</div>
+    </div>
+
+    <div style="margin: 0 auto 28px auto; max-width: 900px; background: #fff; border: 1px solid #e0e3e8; border-radius: 10px; padding: 14px 18px; font-size: 13px; color: #444; line-height: 1.5;">
+        <strong>How to use:</strong><br>
+        1. Upload the Master Client List.<br>
+        2. Select an <strong>Advisor</strong> to filter the list.<br>
+        3. Edit the email template.<br>
+        4. Download the Excel file. It will contain a <strong>"Click to Draft"</strong> link for every client.
+    </div>
+
+    <div style="text-align: center; margin-bottom: 30px;">
+        <label class="btn btn-upload">
+            📂 Upload Master Client List
+            <input id="fileInput" class="file-input" type="file" onchange="loadFile()">
+        </label>
+        <div id="fileStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary);"></div>
+    </div>
+
+    <div class="card" id="advisorSection" style="display:none; margin-bottom: 24px;">
+        <h3 style="margin-top:0">1. Select Servicing Advisor</h3>
+        <div class="advisor-list" id="advisorList"></div>
+    </div>
+
+    <div class="config-grid" id="mainSection" style="display:none;">
+        
+        <div class="card">
+            <h3 style="margin-top:0">2. Email Template</h3>
+            
+            <label style="font-size:12px; font-weight:600;">Subject Line</label>
+            <input type="text" id="subjectInput" value="Happy Birthday {{FirstName}}! 🎉" oninput="renderPreview()">
+
+            <label style="font-size:12px; font-weight:600;">Email Body</label>
+            <div style="margin-bottom:8px;">
+                <span class="var-tag" onclick="insertVar('{{FirstName}}')">+ First Name</span>
+                <span class="var-tag" onclick="insertVar('{{LastName}}')">+ Last Name</span>
+                <span class="var-tag" onclick="insertVar('{{Advisor}}')">+ Advisor Name</span>
+            </div>
+            <textarea id="bodyInput" oninput="renderPreview()">Dear {{FirstName}},
+
+Wishing you a wonderful birthday! Hope you have a fantastic day celebrating.
+
+Best regards,
+{{Advisor}}</textarea>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0">3. Preview & Download</h3>
+                <button class="btn btn-primary" onclick="downloadExcel()">Download Excel for Outlook</button>
+            </div>
+
+            <div style="font-size:12px; color:#666; margin-bottom:5px;">Previewing first matching client:</div>
+            <div class="email-preview" id="previewArea">Select an advisor to see preview...</div>
+            
+            <div style="margin-top:15px; font-size:12px; color:#666;">
+                <strong>Summary:</strong> <span id="clientCount">0</span> clients found for this advisor.
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let rawData = [];
+let headers = [];
+let advisors = [];
+let selectedAdvisor = "";
+
+// 1. FILE HANDLING
+function loadFile() {
+    const file = document.getElementById("fileInput").files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+        if(jsonData.length < 2) return;
+
+        headers = jsonData[0];
+        rawData = jsonData.slice(1); // Remove headers
+
+        document.getElementById("fileStatus").innerText = "Loaded: " + file.name;
+        
+        extractAdvisors();
+        document.getElementById("advisorSection").style.display = "block";
+        document.getElementById("mainSection").style.display = "grid";
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// 2. ADVISOR LOGIC
+function extractAdvisors() {
+    // Attempt to find the "Servicing Advisor" column
+    // We look for keywords: "Advisor", "Servicing", "Rep"
+    let advIdx = headers.findIndex(h => String(h).toLowerCase().includes("advisor"));
+    
+    // Fallback if not found (default to column 0)
+    if (advIdx === -1) advIdx = 0; 
+
+    // Get unique list of advisors
+    const uniqueAdvisors = [...new Set(rawData.map(row => row[advIdx]))].filter(Boolean).sort();
+    
+    const container = document.getElementById("advisorList");
+    container.innerHTML = "";
+
+    uniqueAdvisors.forEach(adv => {
+        const btn = document.createElement("button");
+        btn.className = "advisor-btn";
+        btn.innerText = adv;
+        btn.onclick = () => selectAdvisor(adv, btn);
+        container.appendChild(btn);
+    });
+}
+
+function selectAdvisor(name, btnElement) {
+    selectedAdvisor = name;
+    
+    // Update UI buttons
+    document.querySelectorAll('.advisor-btn').forEach(b => b.classList.remove('active'));
+    btnElement.classList.add('active');
+
+    renderPreview();
+}
+
+// 3. PREVIEW LOGIC
+function renderPreview() {
+    if (!selectedAdvisor) return;
+
+    // Find first client for this advisor to show as example
+    // We need to map columns again
+    let advIdx = headers.findIndex(h => String(h).toLowerCase().includes("advisor"));
+    if (advIdx === -1) advIdx = 0;
+
+    const clients = rawData.filter(r => r[advIdx] === selectedAdvisor);
+    document.getElementById("clientCount").innerText = clients.length;
+
+    if (clients.length === 0) {
+        document.getElementById("previewArea").innerText = "No clients found for this advisor.";
+        return;
+    }
+
+    // Pick first client for demo
+    const demoClient = clients[0];
+    
+    // Try to find Name column
+    let nameIdx = headers.findIndex(h => /name|client|account/i.test(String(h)));
+    let firstName = "John";
+    let lastName = "Doe";
+
+    if (nameIdx > -1 && demoClient[nameIdx]) {
+        const fullName = String(demoClient[nameIdx]).trim();
+        const parts = fullName.split(" ");
+        firstName = parts[0];
+        lastName = parts.length > 1 ? parts[parts.length - 1] : "";
+    }
+
+    // Build Preview Text
+    const subj = document.getElementById("subjectInput").value
+        .replace("{{FirstName}}", firstName)
+        .replace("{{LastName}}", lastName)
+        .replace("{{Advisor}}", selectedAdvisor);
+
+    const body = document.getElementById("bodyInput").value
+        .replace("{{FirstName}}", firstName)
+        .replace("{{LastName}}", lastName)
+        .replace("{{Advisor}}", selectedAdvisor);
+
+    document.getElementById("previewArea").innerText = 
+        `Subject: ${subj}\n\n${body}`;
+}
+
+// 4. TEMPLATE HELPERS
+function insertVar(text) {
+    const el = document.getElementById("bodyInput");
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const val = el.value;
+    el.value = val.substring(0, start) + text + val.substring(end);
+    el.focus();
+    renderPreview();
+}
+
+// 5. DOWNLOAD LOGIC (The Smart Excel Part)
+function downloadExcel() {
+    if (!selectedAdvisor) {
+        alert("Please select an advisor first.");
+        return;
+    }
+
+    let advIdx = headers.findIndex(h => String(h).toLowerCase().includes("advisor"));
+    if (advIdx === -1) advIdx = 0;
+    
+    // Find needed columns
+    let nameIdx = headers.findIndex(h => /name|client/i.test(String(h)));
+    let emailIdx = headers.findIndex(h => /email/i.test(String(h)));
+    let dateIdx = headers.findIndex(h => /birth|dob/i.test(String(h)));
+
+    const clients = rawData.filter(r => r[advIdx] === selectedAdvisor);
+    
+    // Create Data for new Excel
+    // We add a special column "Outlook Action"
+    const exportData = [
+        ["Client Name", "Email", "Birthday", "Status", "Outlook Action"] // Header
+    ];
+
+    const templateSubj = document.getElementById("subjectInput").value;
+    const templateBody = document.getElementById("bodyInput").value;
+
+    clients.forEach(c => {
+        const name = nameIdx > -1 ? c[nameIdx] : "Client";
+        const email = emailIdx > -1 ? c[emailIdx] : "";
+        let bdayRaw = dateIdx > -1 ? c[dateIdx] : "";
+        
+        // Name Logic
+        const parts = String(name).trim().split(" ");
+        const firstName = parts[0];
+        const lastName = parts.length > 1 ? parts[parts.length - 1] : "";
+
+        // Customize Message
+        const finalSubj = templateSubj
+            .replace("{{FirstName}}", firstName)
+            .replace("{{LastName}}", lastName)
+            .replace("{{Advisor}}", selectedAdvisor);
+
+        const finalBody = templateBody
+            .replace("{{FirstName}}", firstName)
+            .replace("{{LastName}}", lastName)
+            .replace("{{Advisor}}", selectedAdvisor);
+
+        // CREATE HYPERLINK FORMULA
+        // Format: =HYPERLINK("mailto:email?subject=...&body=...", "Draft Email")
+        // We must encodeURIComponent to handle spaces and newlines safely
+        
+        let linkFormula = "";
+        if (email) {
+            const cleanSubj = encodeURIComponent(finalSubj);
+            const cleanBody = encodeURIComponent(finalBody);
+            // Note: Excel formulas have a length limit, but this covers most standard emails
+            const mailto = `mailto:${email}?subject=${cleanSubj}&body=${cleanBody}`;
+            
+            // Excel Formula Syntax
+            linkFormula = {
+                t: 's', 
+                f: `HYPERLINK("${mailto}", "Draft Email")`, 
+                v: "Draft Email"
+            };
+        } else {
+            linkFormula = "No Email Found";
+        }
+
+        exportData.push([
+            name,
+            email,
+            bdayRaw, // Keep original date format
+            "Pending",
+            linkFormula
+        ]);
+    });
+
+    // Generate Excel
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(exportData);
+
+    // Set column widths for readability
+    ws['!cols'] = [
+        {wch: 25}, // Name
+        {wch: 30}, // Email
+        {wch: 15}, // Birthday
+        {wch: 10}, // Status
+        {wch: 20}  // Action Button
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Birthday List");
+    XLSX.writeFile(wb, `${selectedAdvisor}_Birthday_List.xlsx`);
+}
+</script>
+
+</body>
+</html>
