@@ -11,11 +11,17 @@
     /* # Section: Tool Specific Styles */
     .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
     @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
+    
     .advisor-btn { padding: 8px 16px; border: 1px solid #ddd; border-radius: 20px; background: #fff; cursor: pointer; font-size: 13px; margin: 4px; transition: 0.2s; }
-    .advisor-btn.active { background: var(--primary); color: white; font-weight: 600; }
+    .advisor-btn.active { background: var(--primary); color: white; font-weight: 600; border-color: var(--primary); }
+    
     textarea { width: 100%; height: 120px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Inter', sans-serif; font-size: 13px; margin: 10px 0; box-sizing: border-box; }
-    .email-preview { background: #f9f9f9; border: 1px solid #eee; padding: 15px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; color: #444; }
+    .email-preview { background: #f9f9f9; border: 1px solid #eee; padding: 15px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; color: #444; min-height: 100px; }
+    
     .var-tag { display: inline-block; padding: 4px 8px; background: #e3f2fd; color: #1565c0; border-radius: 4px; font-size: 11px; margin: 5px 5px 0 0; cursor: pointer; border: 1px solid #bbdefb; }
+    .var-tag:hover { background: #bbdefb; }
+
+    .status-today { color: #d32f2f; font-weight: bold; background: #ffebee; padding: 2px 6px; border-radius: 4px; }
 </style>
 </head>
 
@@ -31,32 +37,33 @@
         <div style="font-size: 14px; color: #666;">IG Wealth Admin Automation Tool</div>
     </div>
 
-    <div style="text-align: center; margin-bottom: 30px;">
+    <div class="card" style="text-align: center; margin-bottom: 30px;">
         <label class="btn btn-upload">
             📂 Upload Master Client List
             <input id="fileInput" style="display:none;" type="file" onchange="loadFile()">
         </label>
-        <div id="fileStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary);"></div>
+        <div id="fileStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary);">Ready to upload...</div>
     </div>
 
     <div id="advisorSection" class="card" style="display:none; margin-bottom: 24px;">
-        <h3>1. Select Servicing Advisor</h3>
+        <h3 style="margin-top:0;">1. Filter by Servicing Advisor</h3>
         <div id="advisorList"></div>
     </div>
 
     <div id="mainSection" class="config-grid" style="display:none;">
         <div class="card">
-            <h3>2. Template Editor</h3>
+            <h3 style="margin-top:0;">2. Template Editor</h3>
             <label style="font-size:12px; font-weight:600;">Subject Line</label>
-            <input type="text" id="subjectInput" value="Happy Birthday {{FirstName}}! 🎉" oninput="renderPreview()" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px;">
+            <input type="text" id="subjectInput" value="Happy Birthday {{FirstName}}! 🎉" oninput="renderPreview()" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px; box-sizing: border-box;">
             
             <div style="margin-bottom:8px;">
                 <span class="var-tag" onclick="insertVar('{{FirstName}}')">+ First Name</span>
+                <span class="var-tag" onclick="insertVar('{{LastName}}')">+ Last Name</span>
                 <span class="var-tag" onclick="insertVar('{{Advisor}}')">+ Advisor</span>
             </div>
             <textarea id="bodyInput" oninput="renderPreview()">Dear {{FirstName}},
 
-Wishing you a wonderful birthday!
+Wishing you a wonderful birthday! Hope you have a fantastic day.
 
 Best regards,
 {{Advisor}}</textarea>
@@ -64,56 +71,114 @@ Best regards,
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0;">3. Preview & Export</h3>
+                <h3 style="margin:0;">3. Preview (Today's Birthdays)</h3>
                 <button class="btn btn-primary" onclick="downloadExcel()">Download Smart Excel</button>
             </div>
-            <div class="email-preview" id="previewArea">Select an advisor to preview...</div>
+            <div class="email-preview" id="previewArea">Select an advisor or upload a file to see today's matches...</div>
+            <div id="matchSummary" style="font-size:12px; color:#666; margin-top:10px;"></div>
         </div>
     </div>
 </div>
 
 <script>
-    /* # Section: JavaScript Logic for Birthday Automation */
-    let rawData = [], headers = [], selectedAdvisor = "";
+    /* # Section: Core Logic */
+    let rawData = [], headers = [], selectedAdvisor = null;
+    let advIdx = -1, nameIdx = -1, emailIdx = -1, dateIdx = -1;
 
     function loadFile() {
         const file = document.getElementById("fileInput").files[0];
+        if (!file) return;
+        
         const reader = new FileReader();
         reader.onload = e => {
             const data = new Uint8Array(e.target.result);
-            const wb = XLSX.read(data, {type: 'array'});
+            const wb = XLSX.read(data, {type: 'array', cellDates: true});
             const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
-            headers = jsonData[0]; rawData = jsonData.slice(1);
-            document.getElementById("fileStatus").innerText = "Loaded: " + file.name;
-            renderAdvisorButtons();
-            document.getElementById("advisorSection").style.display = "block";
+            
+            headers = jsonData[0];
+            rawData = jsonData.slice(1);
+            
+            // Map Columns
+            advIdx = headers.findIndex(h => String(h).trim() === "Servicing Advisor");
+            nameIdx = headers.findIndex(h => /name/i.test(h));
+            emailIdx = headers.findIndex(h => /email/i.test(h));
+            dateIdx = headers.findIndex(h => /birth/i.test(h));
+
+            document.getElementById("fileStatus").innerText = "Successfully Loaded: " + file.name;
+            
+            // Show/Hide Advisor Section
+            if (advIdx !== -1) {
+                renderAdvisorButtons();
+                document.getElementById("advisorSection").style.display = "block";
+            } else {
+                document.getElementById("advisorSection").style.display = "none";
+                selectedAdvisor = null; // No filtering
+            }
+            
             document.getElementById("mainSection").style.display = "grid";
+            renderPreview();
         };
         reader.readAsArrayBuffer(file);
     }
 
     function renderAdvisorButtons() {
-        let advIdx = headers.findIndex(h => /advisor/i.test(h)) || 0;
         const list = [...new Set(rawData.map(r => r[advIdx]))].filter(Boolean).sort();
         const container = document.getElementById("advisorList");
         container.innerHTML = "";
+        
         list.forEach(adv => {
             const btn = document.createElement("button");
-            btn.className = "advisor-btn"; btn.innerText = adv;
+            btn.className = "advisor-btn";
+            btn.innerText = adv;
             btn.onclick = () => {
                 selectedAdvisor = adv;
                 document.querySelectorAll('.advisor-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active'); renderPreview();
+                btn.classList.add('active');
+                renderPreview();
             };
             container.appendChild(btn);
         });
     }
 
     function renderPreview() {
-        if (!selectedAdvisor) return;
-        const subj = document.getElementById("subjectInput").value.replace("{{FirstName}}", "Client").replace("{{Advisor}}", selectedAdvisor);
-        const body = document.getElementById("bodyInput").value.replace("{{FirstName}}", "Client").replace("{{Advisor}}", selectedAdvisor);
-        document.getElementById("previewArea").innerText = `Subject: ${subj}\n\n${body}`;
+        const today = new Date();
+        const tMonth = today.getMonth();
+        const tDate = today.getDate();
+        
+        let filtered = rawData;
+        if (advIdx !== -1 && selectedAdvisor) {
+            filtered = rawData.filter(r => r[advIdx] === selectedAdvisor);
+        }
+
+        // Filter for TODAY
+        const matches = filtered.filter(r => {
+            const d = new Date(r[dateIdx]);
+            return d.getMonth() === tMonth && d.getDate() === tDate;
+        });
+
+        const previewContainer = document.getElementById("previewArea");
+        const summary = document.getElementById("matchSummary");
+        
+        if (matches.length === 0) {
+            previewContainer.innerText = "No birthdays matching today's date.";
+            summary.innerText = "Total clients for selection: " + filtered.length;
+            return;
+        }
+
+        const sample = matches[0];
+        const firstName = String(sample[nameIdx]).split(" ")[0];
+        const advisorName = selectedAdvisor || "Your Advisor";
+
+        const subj = document.getElementById("subjectInput").value
+            .replaceAll("{{FirstName}}", firstName)
+            .replaceAll("{{Advisor}}", advisorName);
+        
+        const body = document.getElementById("bodyInput").value
+            .replaceAll("{{FirstName}}", firstName)
+            .replaceAll("{{Advisor}}", advisorName);
+
+        previewContainer.innerText = `To: ${sample[emailIdx] || 'No Email Found'}\nSubject: ${subj}\n\n${body}`;
+        summary.innerHTML = `<span class="status-today">Matched ${matches.length} birthdays for today!</span>`;
     }
 
     function insertVar(text) {
@@ -124,23 +189,50 @@ Best regards,
     }
 
     function downloadExcel() {
-        if (!selectedAdvisor) return alert("Select an advisor.");
-        const advIdx = headers.findIndex(h => /advisor/i.test(h)) || 0;
-        const clients = rawData.filter(r => r[advIdx] === selectedAdvisor);
-        const exportData = [["Name", "Email", "Status", "Outlook Link"]];
-        
-        clients.forEach(c => {
-            const name = String(c[0]).split(" ")[0];
-            const email = c[headers.findIndex(h => /email/i.test(h))] || "";
-            const mailto = `mailto:${email}?subject=${encodeURIComponent(document.getElementById("subjectInput").value.replace("{{FirstName}}", name).replace("{{Advisor}}", selectedAdvisor))}&body=${encodeURIComponent(document.getElementById("bodyInput").value.replace("{{FirstName}}", name).replace("{{Advisor}}", selectedAdvisor))}`;
-            exportData.push([c[0], email, "Pending", { t: 's', f: `HYPERLINK("${mailto}", "Draft Email")`, v: "Draft Email" }]);
+        let filtered = rawData;
+        if (advIdx !== -1 && selectedAdvisor) {
+            filtered = rawData.filter(r => r[advIdx] === selectedAdvisor);
+        }
+
+        const exportData = [
+            ["Client Name", "Email", "Birth Month", "Birth Day", "Is Birthday Today?", "Outlook Draft Link"]
+        ];
+
+        const templateSubj = document.getElementById("subjectInput").value;
+        const templateBody = document.getElementById("bodyInput").value;
+
+        filtered.forEach((c, idx) => {
+            const rowNum = idx + 2; // Excel rows start at 1, header is 1
+            const fullName = String(c[nameIdx] || "Client");
+            const firstName = fullName.split(" ")[0];
+            const email = c[emailIdx] || "";
+            const bDate = new Date(c[dateIdx]);
+            const bMonth = bDate.getMonth() + 1;
+            const bDay = bDate.getDate();
+            const advName = selectedAdvisor || "Your Advisor";
+
+            // # Section: Dynamic Excel Formula for "Today"
+            // This formula checks if the Month and Day match the current date in Excel
+            const isTodayFormula = { f: `IF(AND(MONTH(TODAY())=C${rowNum}, DAY(TODAY())=D${rowNum}), "★ TODAY", "")` };
+
+            // Outlook Link
+            const finalSubj = templateSubj.replaceAll("{{FirstName}}", firstName).replaceAll("{{Advisor}}", advName);
+            const finalBody = templateBody.replaceAll("{{FirstName}}", firstName).replaceAll("{{Advisor}}", advName);
+            const mailto = `mailto:${email}?subject=${encodeURIComponent(finalSubj)}&body=${encodeURIComponent(finalBody)}`;
+            
+            const linkFormula = { t: 's', f: `HYPERLINK("${mailto}", "Draft Email")`, v: "Draft Email" };
+
+            exportData.push([fullName, email, bMonth, bDay, isTodayFormula, linkFormula]);
         });
 
         const ws = XLSX.utils.aoa_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Birthdays");
-        XLSX.writeFile(wb, `${selectedAdvisor}_Birthdays.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Daily Birthday List");
+        
+        const fileName = selectedAdvisor ? `${selectedAdvisor}_Daily_Birthdays.xlsx` : "Master_Daily_Birthdays.xlsx";
+        XLSX.writeFile(wb, fileName);
     }
 </script>
+
 </body>
 </html>
